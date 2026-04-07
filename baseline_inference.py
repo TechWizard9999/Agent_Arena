@@ -5,8 +5,12 @@ import json
 from statistics import mean
 
 from agent_arena.env.arena_env import ArenaEnv
-from agent_arena.openenv.task_definitions import build_task_config, list_task_definitions
 from agent_arena.env.objects import Position
+from agent_arena.openenv.task_definitions import (
+    build_task_config,
+    get_task_definition,
+    list_task_definitions,
+)
 from agent_arena.trainer.train import choose_expert_action
 from client import AgentArenaEnv
 from models import AgentArenaAction
@@ -79,9 +83,9 @@ def choose_baseline_action(env: ArenaEnv) -> int:
 def run_direct(task_id: str, episodes: int) -> list[dict[str, object]]:
     env = AgentArenaEnvironment()
     results: list[dict[str, object]] = []
+    task = get_task_definition(task_id)
 
     for episode in range(episodes):
-        task = next(task for task in list_task_definitions() if task.task_id == task_id)
         layout_seed = task.layout_seeds[episode % len(task.layout_seeds)]
         env.reset(task_id=task_id, layout_seed=layout_seed)
         core_env = env._env
@@ -103,7 +107,7 @@ def run_direct(task_id: str, episodes: int) -> list[dict[str, object]]:
                 "task_id": task_id,
                 "layout_seed": layout_seed,
                 "score": final_observation.score,
-                "passed": final_observation.done and final_observation.score >= 0.9,
+                "passed": final_observation.done and final_observation.score >= task.success_threshold,
                 "reward": final_observation.reward,
                 "breakdown": breakdown,
             }
@@ -144,7 +148,7 @@ def run_remote(base_url: str, task_id: str, episodes: int) -> list[dict[str, obj
                     "task_id": task_id,
                     "layout_seed": layout_seed,
                     "score": final_observation.score,
-                    "passed": final_observation.score >= 0.9,
+                    "passed": final_observation.score >= task.success_threshold,
                     "reward": final_observation.reward if final_observation.reward is not None else final_observation.score,
                     "breakdown": final_observation.metadata.get("grade_breakdown", {}),
                 }
@@ -154,10 +158,17 @@ def run_remote(base_url: str, task_id: str, episodes: int) -> list[dict[str, obj
 
 
 def summarize(results: list[dict[str, object]]) -> dict[str, object]:
+    task_id = str(results[0]["task_id"]) if results else "easy_facility_reset"
+    task = get_task_definition(task_id)
+    average_score = mean(float(item["score"]) for item in results) if results else 0.0
+    low, high = task.expected_baseline_score_range
     return {
         "episodes": len(results),
-        "average_score": mean(float(item["score"]) for item in results) if results else 0.0,
+        "average_score": average_score,
         "pass_rate": mean(1.0 if item["passed"] else 0.0 for item in results) if results else 0.0,
+        "expected_baseline_score_range": list(task.expected_baseline_score_range),
+        "within_expected_range": low <= average_score <= high,
+        "success_threshold": task.success_threshold,
         "episodes_detail": results,
     }
 

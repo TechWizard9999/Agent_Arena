@@ -5,13 +5,15 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "openenv-agent-arena-dynamic-ops"
 version = "1.0.0"
-description = "OpenEnv Dynamic Facility Operations environment built from AI Agent Arena"
+description = "OpenEnv Dynamic Facility Operations benchmark environment"
 requires-python = ">=3.10"
 dependencies = [
     "openenv-core[core]>=0.2.2",
     "numpy>=2.0.0",
     "torch>=2.0.0",
     "matplotlib>=3.8.0",
+    "openai>=1.0.0",
+    "requests>=2.31.0",
 ]
 
 [project.optional-dependencies]
@@ -23,7 +25,7 @@ dev = [
 [project.scripts]
 server = "server.app:main"
 baseline-agent-arena = "baseline_inference:main"
+inference-agent-arena = "inference:main"
 
 [tool.setuptools.packages.find]
 include = ["agent_arena", "agent_arena.*", "server"]
-

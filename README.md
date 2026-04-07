@@ -14,55 +14,87 @@ tags:
   - logistics
 ---
 
-# AI Agent Arena: Dynamic Facility Operations
+# Agent Arena: Dynamic Facility Operations
 
-AI Agent Arena has been converted into an **OpenEnv-compliant environment** for the Meta × PyTorch OpenEnv hackathon. Instead of presenting the benchmark as a toy key-door-goal game, this version frames the environment as a **real-world facility operations task**:
+Agent Arena is an OpenEnv benchmark for stress-testing a maintenance rover in a secure industrial facility. The mission is deliberately multi-stage:
 
-- collect an access badge
-- unlock a safety gate
-- reach the active service checkpoint
-- adapt when the checkpoint reroutes or an aisle becomes blocked mid-run
+1. collect an access badge
+2. unlock a safety gate
+3. reach the active service checkpoint
+4. recover when the checkpoint reroutes or a new blockage appears mid-episode
 
-The original PyTorch + DQN training code is still included under `agent_arena/`, but the repository root is now shaped as a deployable OpenEnv environment with manifest, typed models, server, Dockerfile, baseline inference script, and Hugging Face Space-ready README metadata.
+The repository now satisfies the Round 1 OpenEnv checklist end to end: real-world framing, typed models, `openenv.yaml`, 3 graded tasks, normalized rewards, a root `inference.py`, Docker deployment, Hugging Face Space metadata, and reproducible experiment artifacts.
 
-## Why This Fits The Hackathon
+## Why This Environment Matters
 
-This project is built around the hackathon goal of evaluating intelligence under dynamic conditions:
+This benchmark is built to measure planning and adaptability rather than simple movement:
 
-- **Real-world task framing**: secure facility maintenance and autonomous dispatch
-- **Multi-step reasoning**: badge pickup -> gate unlock -> checkpoint reach
-- **Dynamic environment**: checkpoint reroutes and new obstacles can appear
-- **Three graded tasks**: easy, medium, hard
-- **Normalized scoring**: task grading and OpenEnv-facing reward in `[0.0, 1.0]`
-- **OpenEnv compliance**: `openenv.yaml`, FastAPI app, `/reset`, `/step`, `/state`, `/schema`, `/health`, `/mcp`, Docker deployment
+- Sequential dependency: the rover cannot finish without badge pickup before gate unlock.
+- Dynamic disruption: the checkpoint can move and a fresh obstacle can be introduced after the episode has already started.
+- Partial-credit grading: the evaluator gives useful signal for progress, not just all-or-nothing success.
+- Curriculum support: `/reset` accepts `difficulty_scale` in `[0, 1]` to interpolate chaos, reroute timing, and step budget.
 
-## Tasks
+## Task Catalog
 
-The environment exposes three submission-ready tasks:
+| Task ID | Difficulty | What Changes | Success Criteria | Expected Baseline |
+|---|---|---|---|---|
+| `easy_facility_reset` | easy | static checkpoint | Collect badge, open gate, reach checkpoint within budget | `0.94 - 0.99` |
+| `medium_reroute_response` | medium | checkpoint reroutes at step 8 | Finish the full sequence even after the checkpoint moves | `0.60 - 0.92` |
+| `hard_disruption_recovery` | hard | checkpoint reroutes and an obstacle may appear | Recover from reroutes and aisle disruption before timeout | `0.68 - 0.82` |
 
-1. `easy_facility_reset`
-   Static checkpoint, no dynamic disruption, generous step budget.
-2. `medium_reroute_response`
-   The checkpoint can move after a facility alert.
-3. `hard_disruption_recovery`
-   The checkpoint can reroute and a new blockage can appear while the mission is underway.
+Evaluation dimensions are exposed directly in the observation/task metadata:
 
-Each task uses deterministic layout seeds so you can report reproducible baseline scores.
+- easy: sequencing, goal completion, efficiency
+- medium: planning, adaptation, reroute recovery, efficiency
+- hard: long-horizon planning, adaptation, robustness, efficiency
 
-## Scoring And Grading
+## Reward And Grading Design
 
-Scores are normalized to `[0.0, 1.0]`:
+The underlying simulator keeps dense learning rewards:
 
-- `0.30` for collecting the badge
-- `0.30` for unlocking the gate
-- `0.30` for reaching the checkpoint
-- up to `0.10` efficiency bonus for successful fast completions
+- `+10` badge pickup
+- `+10` gate unlock
+- `+50` checkpoint completion
+- `-1` per step
+- `-5` invalid action
 
-This gives a meaningful partial-credit grader while keeping the final reward/score in the range the hackathon expects.
+The OpenEnv-facing grader normalizes outcomes to `[0.0, 1.0]`:
+
+- `0.30` badge milestone
+- `0.30` gate milestone
+- `0.30` checkpoint milestone
+- up to `0.10` efficiency bonus
+
+This keeps the training signal dense while making task-level scores easy to compare across tasks.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A["inference.py / baseline_inference.py"] --> B["server/app.py"]
+    B --> C["AgentArenaEnvironment"]
+    C --> D["ArenaEnv grid simulator"]
+    C --> E["grader.py"]
+    C --> F["task_definitions.py"]
+    G["trainer/train.py"] --> H["DQNAgent + replay buffer"]
+    H --> D
+    G --> I["evaluator/metrics.py"]
+    I --> J["plots/plot_metrics.py"]
+```
+
+Core files:
+
+- `openenv.yaml`
+- `models.py`
+- `server/app.py`
+- `server/agent_arena_environment.py`
+- `agent_arena/openenv/task_definitions.py`
+- `agent_arena/openenv/grader.py`
+- `inference.py`
 
 ## OpenEnv Interface
 
-The deployed environment supports:
+Supported endpoints:
 
 - `POST /reset`
 - `POST /step`
@@ -71,18 +103,100 @@ The deployed environment supports:
 - `GET /metadata`
 - `GET /health`
 - `POST /mcp`
+- `GET /env-info`
 - `WS /ws`
 
-Key files:
+Notable implementation details:
 
-- `openenv.yaml`
-- `pyproject.toml`
-- `models.py`
-- `server/app.py`
-- `server/agent_arena_environment.py`
-- `baseline_inference.py`
+- `/state` now returns the real active HTTP session state instead of a throwaway environment.
+- `/env-info` exposes task metadata, controls, reset options, and the active session snapshot.
+- `/mcp` now lists meaningful tools such as `list_tasks`, `describe_task`, `describe_controls`, and `describe_curriculum`.
 
-## Local Setup
+## Submission Compatibility
+
+The current Scaler dashboard requirements call out several mandatory items beyond basic OpenEnv validation. This repo covers them as follows:
+
+- Root `inference.py`: present and runnable.
+- Structured stdout logs: `inference.py` emits `[START]`, `[STEP]`, and `[END]` JSON log lines.
+- Required env vars for the submission runner: `API_BASE_URL`, `MODEL_NAME`, `HF_TOKEN`.
+- Real-world task: facility operations benchmark, not a toy game framing.
+- 3 graded tasks: easy, medium, hard with normalized scores in `[0.0, 1.0]`.
+- Docker/HF Space deployment: repo includes Dockerfile and Space frontmatter.
+
+## Results
+
+### Deterministic baseline
+
+`python3 baseline_inference.py --episodes-per-task 4`
+
+| Task | Avg Score | Pass Rate |
+|---|---:|---:|
+| easy | `0.963` | `1.00` |
+| medium | `0.878` | `0.75` |
+| hard | `0.710` | `0.50` |
+
+The baseline is strong on the static task, weaker when reroutes force replanning, and clearly inconsistent once disruption is introduced.
+
+### Full DQN experiment
+
+`python3 -m agent_arena.trainer.train --results-path /tmp/agent_arena_full_metrics.json`
+
+Key findings from the completed run:
+
+- Static-trained policy: `1.00` success on static evaluation
+- Same policy under dynamic evaluation: `0.375` success
+- Robustness drop: `0.625`
+- Dynamic evaluation completion after change: `0.1667`
+- Dynamic-policy failure analysis on seen layouts: `failed_after_environment_change=6`, `did_not_pick_key=6`
+
+This is the main benchmark result: agents that look solved in static settings degrade sharply once the environment changes during execution.
+
+### Chaos sweep
+
+| Chaos Level | Success Rate | Avg Reward |
+|---|---:|---:|
+| `0.0` | `0.500` | `22.5` |
+| `0.2` | `0.625` | `4.875` |
+| `0.4` | `0.375` | `-17.625` |
+| `0.6` | `0.125` | `-99.5` |
+
+Increasing disruption reliably pushes performance down, especially at `0.4` and `0.6`.
+
+### Plots
+
+![Reward Curve](plots/reward_vs_episodes.png)
+
+![Static Dynamic Comparison](plots/static_vs_dynamic_comparison.png)
+
+![Chaos Sweep](plots/chaos_level_vs_success_rate.png)
+
+### Example rollout
+
+Expert rollout with dynamic goal enabled:
+
+```text
+Starting episode 1 on layout seed 11
+. . # . .
+A . D . .
+. . # X .
+. K # . .
+. . # G .
+
+Episode 1
+Step 7 | action=open_door | reward=9.00 | has_key=True | door_open=True
+. . # . .
+. A O . .
+. . # X .
+. . # . .
+. . # G .
+
+Episode 1
+Step 10 | action=right | reward=48.00 | has_key=True | door_open=True
+Dynamic event: goal moved and/or obstacle inserted.
+Episode 1 finished | success=True | steps=10 | total_reward=70.00
+```
+
+## Local Usage
 
 Install dependencies:
 
@@ -90,118 +204,80 @@ Install dependencies:
 python3 -m pip install -r requirements.txt
 ```
 
-Generate or refresh the OpenEnv lockfile:
-
-```bash
-python3 -m uv lock
-```
-
-Validate the environment directory:
+Validate the repo:
 
 ```bash
 openenv validate .
 ```
 
-Run the server locally:
+Run the environment server:
 
 ```bash
 python3 -m server.app
 ```
 
-Validate the running server:
+Validate the live server:
 
 ```bash
 openenv validate http://127.0.0.1:8000
 ```
 
-## Baseline Inference
+Run the root submission inference script directly:
 
-Run the reproducible direct baseline:
+```bash
+python3 inference.py
+```
+
+Run the same inference flow against the running server:
+
+```bash
+python3 inference.py --base-url http://127.0.0.1:8000
+```
+
+Run the reproducible baseline JSON summary:
 
 ```bash
 python3 baseline_inference.py --episodes-per-task 4
 ```
 
-Run the same baseline against a running OpenEnv server:
+Train the DQN stack:
 
 ```bash
-python3 baseline_inference.py \
-  --base-url http://127.0.0.1:8000 \
-  --episodes-per-task 4
+python3 -m agent_arena.trainer.train --results-path experiment_results.json
 ```
 
-The baseline uses a deterministic expert-style controller and reports normalized per-task scores in JSON.
+Render analysis plots:
 
-## Hugging Face Spaces
+```bash
+python3 -m agent_arena.plots.plot_metrics --results-path experiment_results.json --output-dir plots
+```
 
-This repo is configured for Docker-based Hugging Face Spaces deployment.
+Visualize a rollout:
 
-Required repo files are already present:
+```bash
+python3 -m agent_arena.demo.visualize --policy expert --dynamic-goal --episodes 1
+```
 
-- `openenv.yaml`
-- `Dockerfile` (repo root)
-- root README frontmatter for Space configuration
+## Hugging Face Space
 
-Recommended Space variables:
+This repo is ready for Docker-based Space deployment. The submission runner variables referenced on the dashboard are:
 
 - `API_BASE_URL`
 - `MODEL_NAME`
+- `HF_TOKEN`
+- optional `ENV_BASE_URL` for remote inference mode
 
-These are surfaced in environment metadata so the runtime configuration is visible to reviewers, even though the included baseline is heuristic and does not require a hosted LLM.
+`inference.py` runs without a remote planner by default for reproducibility, but it will detect the required client configuration when those variables are present.
 
-## RL Training and Experiments
+## Final Checklist
 
-The DQN training framework is fully functional. Run the complete experiment suite:
+- `openenv validate .` passes
+- `openenv validate http://127.0.0.1:8000` passes
+- `python3 inference.py --episodes-per-task 1` passes
+- `python3 inference.py --base-url http://127.0.0.1:8000 --episodes-per-task 1` passes
+- `python3 baseline_inference.py --episodes-per-task 4` passes
+- Root `plots/` contains generated experiment artifacts
 
-```bash
-python -m agent_arena.trainer.train --results-path experiment_results.json
-```
+## Key Insight
 
-For a quicker smoke test:
-
-```bash
-python -m agent_arena.trainer.train --quick --results-path experiment_results.json
-```
-
-Generate plots from the results:
-
-```bash
-python -m agent_arena.plots.plot_metrics --results-path experiment_results.json --output-dir plots/
-```
-
-Visualize an expert rollout in the terminal:
-
-```bash
-python -m agent_arena.demo.visualize --dynamic-goal --episodes 3
-```
-
-Key RL files:
-
-- `agent_arena/env/arena_env.py` — dynamic grid-world environment
-- `agent_arena/agent/dqn.py` — DQN network (2 hidden layers)
-- `agent_arena/agent/agent.py` — agent with target network, replay buffer, ε-greedy
-- `agent_arena/trainer/train.py` — training loop with static vs dynamic experiments
-- `agent_arena/evaluator/metrics.py` — success rate, robustness, generalization metrics
-- `agent_arena/plots/plot_metrics.py` — reward curves, chaos sweep, comparison plots
-
-The experiments demonstrate:
-
-- static-trained agents fail under dynamic conditions
-- dynamic-trained agents show robustness to goal rerouting
-- higher chaos levels degrade success rates measurably
-- generalization gap between seen and unseen layouts
-
-## Expected Outcome
-
-This repository now aims to satisfy the hackathon submission needs in one place:
-
-- an OpenEnv environment that validates locally and at runtime
-- a real-world task framing instead of a toy game framing
-- three difficulty-tiered tasks
-- normalized grading
-- baseline inference
-- Docker/HF Space readiness
-
-The intended story remains the same:
-
-> Agents trained in static environments fail under dynamic conditions.
+Agents trained in static environments fail under dynamic conditions.

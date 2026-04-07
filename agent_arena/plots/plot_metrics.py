@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate experiment plots for AI Agent Arena.")
+    parser = argparse.ArgumentParser(description="Generate experiment plots for Agent Arena.")
     parser.add_argument(
         "--results-path",
         type=Path,

@@ -62,5 +62,8 @@ def task_summary(task: TaskDefinition) -> dict[str, object]:
         "dynamic_change_step": task.dynamic_change_step,
         "max_steps": task.max_steps,
         "layout_seeds": list(task.layout_seeds),
+        "success_criteria": task.success_criteria,
+        "evaluation_dimensions": list(task.evaluation_dimensions),
+        "expected_baseline_score_range": list(task.expected_baseline_score_range),
+        "success_threshold": task.success_threshold,
     }
-

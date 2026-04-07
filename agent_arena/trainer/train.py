@@ -301,7 +301,7 @@ def run_experiment_suite(
 
     results: dict[str, Any] = {
         "metadata": {
-            "project": "AI Agent Arena: Stress Testing AI Under Dynamic Environments",
+            "project": "Agent Arena: Dynamic Facility Operations",
             "base_config": base_config.to_dict(),
         },
         "training_runs": {
@@ -365,7 +365,7 @@ def run_experiment_suite(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train DQN agents in AI Agent Arena.")
+    parser = argparse.ArgumentParser(description="Train DQN agents in Agent Arena.")
     parser.add_argument(
         "--results-path",
         type=Path,

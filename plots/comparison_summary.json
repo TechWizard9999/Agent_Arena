@@ -1,0 +1,39 @@
+{
+  "project": "AI Agent Arena: Stress Testing AI Under Dynamic Environments",
+  "key_insight": "Agents trained in static environments fail under dynamic conditions.",
+  "robustness": {
+    "before_dynamic_success_rate": 1.0,
+    "after_dynamic_success_rate": 0.375,
+    "performance_drop": 0.625,
+    "after_dynamic_completion_rate": 0.16666666666666666
+  },
+  "generalization": {
+    "seen_success_rate": 0.25,
+    "unseen_success_rate": 0.375,
+    "generalization_gap": -0.125,
+    "seen_average_steps": 12,
+    "unseen_average_steps": 8.333333333333334
+  },
+  "chaos_sweep": [
+    {
+      "chaos_level": 0.0,
+      "success_rate": 0.5,
+      "average_reward": 22.5
+    },
+    {
+      "chaos_level": 0.2,
+      "success_rate": 0.625,
+      "average_reward": 4.875
+    },
+    {
+      "chaos_level": 0.4,
+      "success_rate": 0.375,
+      "average_reward": -17.625
+    },
+    {
+      "chaos_level": 0.6,
+      "success_rate": 0.125,
+      "average_reward": -99.5
+    }
+  ]
+}
