@@ -14,7 +14,7 @@ from client import AgentArenaEnv
 from server.agent_arena_environment import AgentArenaEnvironment
 
 
-DEFAULT_ENV_BASE_URL = "http://127.0.0.1:8000"
+DEFAULT_ENV_BASE_URL = "http://127.0.0.1:7860"
 
 
 def parse_args() -> argparse.Namespace:

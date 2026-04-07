@@ -5,7 +5,7 @@ colorFrom: blue
 colorTo: green
 sdk: docker
 pinned: false
-app_port: 8000
+app_port: 7860
 base_path: /web
 tags:
   - openenv
@@ -213,13 +213,13 @@ openenv validate .
 Run the environment server:
 
 ```bash
-python3 -m server.app
+python3 -m server.app --port 7860
 ```
 
 Validate the live server:
 
 ```bash
-openenv validate http://127.0.0.1:8000
+openenv validate http://127.0.0.1:7860
 ```
 
 Run the root submission inference script directly:
@@ -231,7 +231,7 @@ python3 inference.py
 Run the same inference flow against the running server:
 
 ```bash
-python3 inference.py --base-url http://127.0.0.1:8000
+python3 inference.py --base-url http://127.0.0.1:7860
 ```
 
 Run the reproducible baseline JSON summary:
