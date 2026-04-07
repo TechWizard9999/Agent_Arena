@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+
+*.pt
+*_results.json
+experiment_results.json
+
+agent_arena/plots/*.png
+agent_arena/plots/comparison_summary.json
+
+demo_models/
+plot_smoke_outputs/
+

@@ -1,0 +1,13 @@
+.git
+.gitignore
+__pycache__/
+*.py[cod]
+.DS_Store
+
+checkpoints/
+demo_models/
+final_smoke_plots/
+plot_smoke_outputs/
+
+agent_arena/plots/*.png
+agent_arena/plots/comparison_summary.json
