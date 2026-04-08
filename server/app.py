@@ -182,6 +182,13 @@ def root() -> dict[str, Any]:
     }
 
 
+@app.get("/web", tags=["Environment Info"])
+@app.get("/web/", tags=["Environment Info"])
+def web_root() -> dict[str, Any]:
+    """Mirror the root response for Hugging Face Spaces App tab when base_path=/web is used."""
+    return root()
+
+
 def main(host: str = "0.0.0.0", port: int = 7860) -> None:
     uvicorn.run(app, host=host, port=port)
 
