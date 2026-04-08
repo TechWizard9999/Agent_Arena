@@ -168,6 +168,20 @@ def get_env_info() -> dict[str, Any]:
     }
 
 
+@app.get("/", tags=["Environment Info"])
+def root() -> dict[str, Any]:
+    """Return a simple 200 response for Space health probes and manual checks."""
+    return {
+        "name": "agent_arena_dynamic_ops",
+        "status": "ok",
+        "message": "Agent Arena Dynamic Facility Operations is running.",
+        "docs": "/docs",
+        "health": "/health",
+        "metadata": "/metadata",
+        "schema": "/schema",
+    }
+
+
 def main(host: str = "0.0.0.0", port: int = 7860) -> None:
     uvicorn.run(app, host=host, port=port)
 
