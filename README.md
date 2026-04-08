@@ -118,7 +118,7 @@ The current Scaler dashboard requirements call out several mandatory items beyon
 
 - Root `inference.py`: present and runnable.
 - Structured stdout logs: `inference.py` emits `[START]`, `[STEP]`, and `[END]` JSON log lines.
-- Required env vars for the submission runner: `API_BASE_URL`, `MODEL_NAME`, `HF_TOKEN`.
+- Required env vars for the submission runner: `API_BASE_URL`, `MODEL_NAME`, `API_KEY`.
 - Real-world task: facility operations benchmark, not a toy game framing.
 - 3 graded tasks: easy, medium, hard with normalized scores in `[0.0, 1.0]`.
 - Docker/HF Space deployment: repo includes Dockerfile and Space frontmatter.
@@ -264,17 +264,17 @@ This repo is ready for Docker-based Space deployment. The submission runner vari
 
 - `API_BASE_URL`
 - `MODEL_NAME`
-- `HF_TOKEN`
+- `API_KEY`
 - optional `ENV_BASE_URL` for remote inference mode
 
-`inference.py` runs without a remote planner by default for reproducibility, but it will detect the required client configuration when those variables are present.
+`inference.py` falls back to the heuristic baseline when no proxy variables are present locally, but in submission mode it uses the injected `API_BASE_URL` and `API_KEY` with the OpenAI client and routes action selection through the provided LLM proxy.
 
 ## Final Checklist
 
 - `openenv validate .` passes
-- `openenv validate http://127.0.0.1:8000` passes
+- `openenv validate http://127.0.0.1:7860` passes
 - `python3 inference.py --episodes-per-task 1` passes
-- `python3 inference.py --base-url http://127.0.0.1:8000 --episodes-per-task 1` passes
+- `python3 inference.py --base-url http://127.0.0.1:7860 --episodes-per-task 1` passes
 - `python3 baseline_inference.py --episodes-per-task 4` passes
 - Root `plots/` contains generated experiment artifacts
 
