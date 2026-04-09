@@ -15,6 +15,7 @@ from client import AgentArenaEnv
 
 DEFAULT_ENV_BASE_URL = "http://127.0.0.1:7860"
 
+
 def safe_score(value: float) -> float:
     return clamp_open_score(float(value))
 
@@ -28,6 +29,7 @@ ACTION_MAP = {
     "pick_badge": 4,
     "open_gate": 5,
 }
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -61,6 +63,25 @@ def build_openai_client() -> OpenAI | None:
 
 def log_event(tag: str, payload: dict[str, Any]) -> None:
     print(f"{tag} {json.dumps(payload, separators=(',', ':'))}", flush=True)
+
+
+def compact_episode_result(result: dict[str, Any]) -> dict[str, Any]:
+    """Keep episode END logs limited to score-centric fields for submission parsing."""
+    return {
+        "task_id": str(result["task_id"]),
+        "episode": str(result["episode"]),
+        "score": safe_score(result["score"]),
+        "passed": bool(result["passed"]),
+        "status": str(result["status"]),
+        "failure_type": result["failure_type"],
+    }
+
+
+def compact_task_summary(results: list[dict[str, Any]]) -> dict[str, float]:
+    """Emit the smallest task summary the validator needs."""
+    if not results:
+        return {"score": safe_score(0.0)}
+    return {"score": safe_score(mean(item["score"] for item in results))}
 
 
 def get_llm_action(client: OpenAI | None, model_name: str, observation: Any, task_prompt: str) -> int:
@@ -153,14 +174,16 @@ def run_remote(base_url: str, task_id: str, episodes: int, client: OpenAI | None
 
             episode_result = {
                 "task_id": task_id,
+                "episode": episode_index + 1,
                 "layout_seed": layout_seed,
                 "score": safe_score(final_observation.score),
                 "passed": bool(final_observation.score >= task.success_threshold),
                 "reward": float(result.reward or 0.0),
                 "steps": step_count,
+                "status": final_observation.status,
                 "failure_type": final_observation.metadata.get("failure_type"),
             }
-            log_event("[END]", episode_result)
+            log_event("[END]", compact_episode_result(episode_result))
             results.append(episode_result)
 
     return results
@@ -168,26 +191,8 @@ def run_remote(base_url: str, task_id: str, episodes: int, client: OpenAI | None
 
 def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
     if not results:
-        task_score = safe_score(0.0)
-        return {
-            "episodes": 0,
-            "score": task_score,
-            "average_score": task_score,
-            "pass_rate": task_score,
-            "average_steps": 0.0,
-            "details": [],
-        }
-
-    task_score = safe_score(mean(item["score"] for item in results))
-    pass_rate = safe_score(mean(1.0 if item["passed"] else 0.0 for item in results))
-    return {
-        "episodes": len(results),
-        "score": task_score,
-        "average_score": task_score,
-        "pass_rate": pass_rate,
-        "average_steps": mean(item["steps"] for item in results),
-        "details": results,
-    }
+        return compact_task_summary(results)
+    return compact_task_summary(results)
 
 
 def main() -> None:
