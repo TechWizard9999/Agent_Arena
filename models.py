@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from openenv.core.env_server.types import Action, Observation, State
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from agent_arena.openenv.grader import OPEN_SCORE_EPSILON
 
@@ -86,6 +86,11 @@ class AgentArenaObservation(Observation):
     )
     steps_remaining: int = Field(..., description="Remaining step budget.")
 
+    @field_validator("score", mode="before")
+    @classmethod
+    def normalize_score(cls, value: float) -> float:
+        return OPEN_SCORE_EPSILON if value is None else min(1.0 - OPEN_SCORE_EPSILON, max(OPEN_SCORE_EPSILON, float(value)))
+
 
 class AgentArenaState(State):
     """Detailed episode state exposed via state()."""
@@ -130,3 +135,8 @@ class AgentArenaState(State):
         default=None,
         description="Failure label set when an episode ends unsuccessfully.",
     )
+
+    @field_validator("score", mode="before")
+    @classmethod
+    def normalize_score(cls, value: float) -> float:
+        return OPEN_SCORE_EPSILON if value is None else min(1.0 - OPEN_SCORE_EPSILON, max(OPEN_SCORE_EPSILON, float(value)))

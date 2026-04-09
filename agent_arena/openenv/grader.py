@@ -32,7 +32,11 @@ def grade_episode(
     milestone_badge = 0.30 if has_badge else 0.0
     milestone_gate = 0.30 if gate_open else 0.0
     milestone_checkpoint = 0.30 if success else 0.0
-    efficiency = 0.10 * max(0.0, 1.0 - (steps_taken / max_steps)) if success else 0.0
+    efficiency = (
+        0.10 * max(0.0, 1.0 - (steps_taken / max(1, max_steps)))
+        if success
+        else 0.0
+    )
 
     score = clamp_open_score(
         milestone_badge + milestone_gate + milestone_checkpoint + efficiency

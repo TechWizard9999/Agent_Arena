@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -325,7 +326,12 @@ class AgentArenaEnvironment(Environment[AgentArenaAction, AgentArenaObservation,
     ) -> tuple[TaskDefinition, float | None, ArenaConfig]:
         difficulty_raw = kwargs.get("difficulty_scale", kwargs.get("difficulty"))
         if difficulty_raw is not None:
-            difficulty_scale = max(0.0, min(1.0, float(difficulty_raw)))
+            difficulty_scale = float(difficulty_raw)
+            if not math.isfinite(difficulty_scale):
+                raise ValueError(
+                    f"difficulty_scale must be a finite number in [0, 1], got {difficulty_raw!r}."
+                )
+            difficulty_scale = max(0.0, min(1.0, difficulty_scale))
             bucket = infer_difficulty_bucket(difficulty_scale)
             task = get_task_definition(DIFFICULTY_BUCKET_TO_TASK_ID[bucket])
             config = build_curriculum_config(difficulty_scale)
