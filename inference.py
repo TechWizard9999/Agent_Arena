@@ -8,12 +8,16 @@ from typing import Any
 
 from openai import OpenAI
 
+from agent_arena.openenv.grader import clamp_open_score
 from agent_arena.openenv.task_definitions import get_task_definition, list_task_definitions
 from baseline_inference import _action_from_id
 from client import AgentArenaEnv
-from server.agent_arena_environment import AgentArenaEnvironment
 
 DEFAULT_ENV_BASE_URL = "http://127.0.0.1:7860"
+
+def safe_score(value: float) -> float:
+    return clamp_open_score(float(value))
+
 
 # Map string actions from the LLM to the IDs your environment expects
 ACTION_MAP = {
@@ -140,7 +144,7 @@ def run_remote(base_url: str, task_id: str, episodes: int, client: OpenAI | None
                         "step": step_count,
                         "action": action.action.value,
                         "reward": round(float(result.reward or 0.0), 6),
-                        "score": round(float(final_observation.score), 6),
+                        "score": round(safe_score(final_observation.score), 6),
                         "status": final_observation.status,
                         "done": result.done,
                     },
@@ -150,7 +154,7 @@ def run_remote(base_url: str, task_id: str, episodes: int, client: OpenAI | None
             episode_result = {
                 "task_id": task_id,
                 "layout_seed": layout_seed,
-                "score": float(final_observation.score),
+                "score": safe_score(final_observation.score),
                 "passed": bool(final_observation.score >= task.success_threshold),
                 "reward": float(result.reward or 0.0),
                 "steps": step_count,
@@ -166,7 +170,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
     if not results:
         return {
             "episodes": 0,
-            "average_score": 0.0,
+            "average_score": safe_score(0.0),
             "pass_rate": 0.0,
             "average_steps": 0.0,
             "details": [],
@@ -174,7 +178,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "episodes": len(results),
-        "average_score": mean(item["score"] for item in results),
+        "average_score": safe_score(mean(item["score"] for item in results)),
         "pass_rate": mean(1.0 if item["passed"] else 0.0 for item in results),
         "average_steps": mean(item["steps"] for item in results),
         "details": results,

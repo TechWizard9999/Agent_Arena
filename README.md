@@ -58,7 +58,7 @@ The underlying simulator keeps dense learning rewards:
 - `-1` per step
 - `-5` invalid action
 
-The OpenEnv-facing grader normalizes outcomes to `[0.0, 1.0]`:
+The OpenEnv-facing grader normalizes outcomes to the strict open interval `(0, 1)`:
 
 - `0.30` badge milestone
 - `0.30` gate milestone
@@ -120,7 +120,7 @@ The current Scaler dashboard requirements call out several mandatory items beyon
 - Structured stdout logs: `inference.py` emits `[START]`, `[STEP]`, and `[END]` JSON log lines.
 - Required env vars for the submission runner: `API_BASE_URL`, `MODEL_NAME`, `API_KEY`.
 - Real-world task: facility operations benchmark, not a toy game framing.
-- 3 graded tasks: easy, medium, hard with normalized scores in `[0.0, 1.0]`.
+- 3 graded tasks: easy, medium, hard with normalized scores in the strict open interval `(0, 1)`.
 - Docker/HF Space deployment: repo includes Dockerfile and Space frontmatter.
 
 ## Results

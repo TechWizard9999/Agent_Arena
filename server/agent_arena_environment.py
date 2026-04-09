@@ -10,7 +10,13 @@ from openenv.core.env_server.types import EnvironmentMetadata
 
 from agent_arena.config import ArenaConfig
 from agent_arena.env.arena_env import ArenaEnv
-from agent_arena.openenv.grader import grade_episode, normalized_step_reward, task_summary
+from agent_arena.openenv.grader import (
+    OPEN_SCORE_EPSILON,
+    clamp_open_score,
+    grade_episode,
+    normalized_step_reward,
+    task_summary,
+)
 from agent_arena.openenv.task_definitions import (
     ACTION_CONTEXT,
     TaskDefinition,
@@ -53,6 +59,7 @@ class AgentArenaEnvironment(Environment[AgentArenaAction, AgentArenaObservation,
         self._env = ArenaEnv(build_task_config(self._task.task_id))
         self._difficulty_scale: float | None = None
         self._config_snapshot = self._env.get_config_snapshot()
+        self._score = OPEN_SCORE_EPSILON
         self._state = AgentArenaState(
             episode_id=str(uuid4()),
             step_count=0,
@@ -66,8 +73,8 @@ class AgentArenaEnvironment(Environment[AgentArenaAction, AgentArenaObservation,
             success_threshold=self._task.success_threshold,
             current_prompt=self._task.prompt,
             config_snapshot=self._config_snapshot,
+            score=self._score,
         )
-        self._score = 0.0
         self._event_log: list[str] = []
         self._last_status = "Environment initialized."
         self._readme_content = self._load_readme()
@@ -88,7 +95,7 @@ class AgentArenaEnvironment(Environment[AgentArenaAction, AgentArenaObservation,
         layout_seed = kwargs.get("layout_seed", seed)
         observation, info = self._env.reset(layout_seed=layout_seed)
 
-        self._score = 0.0
+        self._score = OPEN_SCORE_EPSILON
         self._event_log = [f"Task loaded: {self._task.title}"]
         self._last_status = "Collect the access badge to begin the facility run."
         self._state = AgentArenaState(
@@ -102,7 +109,7 @@ class AgentArenaEnvironment(Environment[AgentArenaAction, AgentArenaObservation,
             has_badge=False,
             gate_open=False,
             dynamic_event_triggered=False,
-            score=0.0,
+            score=self._score,
             status="ready",
             status_message=self._last_status,
             session_active=True,
@@ -175,7 +182,7 @@ class AgentArenaEnvironment(Environment[AgentArenaAction, AgentArenaObservation,
             has_badge=info["has_key"],
             gate_open=info["door_open"],
             dynamic_event_triggered=info["goal_shifted"] or info["dynamic_obstacle_added"],
-            score=self._score,
+            score=clamp_open_score(self._score),
             status="success" if info["success"] else ("failed" if done else "in_progress"),
             status_message=self._last_status,
             session_active=True,
@@ -272,7 +279,7 @@ class AgentArenaEnvironment(Environment[AgentArenaAction, AgentArenaObservation,
             has_badge=self._env.has_key,
             gate_open=self._env.door_open,
             dynamic_event_triggered=bool(info["goal_shifted"] or info["dynamic_obstacle_added"]),
-            score=self._score,
+            score=clamp_open_score(self._score),
             event_log=self._event_log[-5:],
             action_descriptions=dict(ACTION_CONTEXT),
             config_snapshot=config_snapshot,

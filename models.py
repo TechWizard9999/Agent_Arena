@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional
 from openenv.core.env_server.types import Action, Observation, State
 from pydantic import Field
 
+from agent_arena.openenv.grader import OPEN_SCORE_EPSILON
+
 
 class AgentArenaActionType(str, Enum):
     UP = "up"
@@ -66,7 +68,10 @@ class AgentArenaObservation(Observation):
         False,
         description="Whether the reroute/disruption event has happened this episode.",
     )
-    score: float = Field(0.0, description="Current normalized grader score in [0, 1].")
+    score: float = Field(
+        OPEN_SCORE_EPSILON,
+        description="Current normalized grader score in the strict open interval (0, 1).",
+    )
     event_log: List[str] = Field(
         default_factory=list,
         description="Recent environment events and milestone messages.",
@@ -99,7 +104,10 @@ class AgentArenaState(State):
         default=False,
         description="Whether the dynamic reroute/disruption event has triggered.",
     )
-    score: float = Field(default=0.0, description="Current normalized task score.")
+    score: float = Field(
+        default=OPEN_SCORE_EPSILON,
+        description="Current normalized task score in the strict open interval (0, 1).",
+    )
     status: str = Field(default="ready", description="High-level environment status string.")
     status_message: str = Field(
         default="Environment initialized.",

@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from agent_arena.openenv.task_definitions import TaskDefinition
 
+OPEN_SCORE_EPSILON = 1e-6
+
 
 @dataclass(frozen=True)
 class GradeResult:
@@ -12,6 +14,11 @@ class GradeResult:
     score: float
     passed: bool
     breakdown: dict[str, float]
+
+
+def clamp_open_score(value: float) -> float:
+    """Clamp a score into the strict open interval required by the validator."""
+    return min(1.0 - OPEN_SCORE_EPSILON, max(OPEN_SCORE_EPSILON, value))
 
 
 def grade_episode(
@@ -27,7 +34,9 @@ def grade_episode(
     milestone_checkpoint = 0.30 if success else 0.0
     efficiency = 0.10 * max(0.0, 1.0 - (steps_taken / max_steps)) if success else 0.0
 
-    score = min(1.0, milestone_badge + milestone_gate + milestone_checkpoint + efficiency)
+    score = clamp_open_score(
+        milestone_badge + milestone_gate + milestone_checkpoint + efficiency
+    )
     return GradeResult(
         score=score,
         passed=success,

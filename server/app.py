@@ -18,7 +18,7 @@ from openenv.core.env_server.http_server import (
 )
 from pydantic import ValidationError
 
-from agent_arena.openenv.grader import task_summary
+from agent_arena.openenv.grader import OPEN_SCORE_EPSILON, task_summary
 from agent_arena.openenv.task_definitions import (
     ACTION_CONTEXT,
     curriculum_summary,
@@ -73,7 +73,7 @@ def _empty_state() -> AgentArenaState:
         has_badge=False,
         gate_open=False,
         dynamic_event_triggered=False,
-        score=0.0,
+        score=OPEN_SCORE_EPSILON,
         status="no_active_session",
         status_message="Call /reset to start an episode before requesting state or stepping.",
         session_active=False,
