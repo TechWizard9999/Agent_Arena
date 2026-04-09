@@ -1,6 +1,155 @@
 spec_version: 1
 name: agent_arena_dynamic_ops
+version: "1.0.0"
+description: >
+  Dynamic Facility Operations is an OpenEnv benchmark for evaluating how an
+  autonomous maintenance rover adapts to rerouted objectives and mid-episode
+  disruptions while completing a real-world facility task sequence.
 type: space
 runtime: fastapi
 app: server.app:app
 port: 7860
+author: TechWizard9999
+license: MIT
+requires_python: ">=3.10"
+inference_script: inference.py
+
+tags:
+  - openenv
+  - reinforcement-learning
+  - robotics
+  - facility-operations
+  - dynamic-environments
+  - benchmark
+
+tasks:
+  - id: easy_facility_reset
+    name: "Easy Facility Reset"
+    difficulty: easy
+    description: >
+      Collect the access badge, unlock the safety gate, and reach the service
+      checkpoint in a static facility layout.
+    success_criteria: >
+      Collect the badge, open the gate, and reach the checkpoint within the
+      step budget.
+    max_steps: 32
+    expected_score_range: [0.94, 0.99]
+    grader: agent_arena.openenv.grader:grade_episode
+    grader_type: deterministic
+
+  - id: medium_reroute_response
+    name: "Medium Reroute Response"
+    difficulty: medium
+    description: >
+      Complete the badge -> gate -> checkpoint sequence even when the facility
+      reroutes the checkpoint during execution.
+    success_criteria: >
+      Recover from the checkpoint reroute and finish the full task sequence
+      before the episode ends.
+    max_steps: 34
+    expected_score_range: [0.60, 0.92]
+    grader: agent_arena.openenv.grader:grade_episode
+    grader_type: deterministic
+
+  - id: hard_disruption_recovery
+    name: "Hard Disruption Recovery"
+    difficulty: hard
+    description: >
+      Recover from both a checkpoint reroute and a dynamic aisle blockage while
+      still finishing the full facility mission.
+    success_criteria: >
+      Collect the badge, open the gate, and reach the moved checkpoint after
+      disruptions within the tighter step budget.
+    max_steps: 30
+    expected_score_range: [0.68, 0.82]
+    grader: agent_arena.openenv.grader:grade_episode
+    grader_type: deterministic
+
+observation_space:
+  type: object
+  description: >
+    Structured observation containing the current facility layout, mission
+    status, legal actions, score, and active task metadata.
+  properties:
+    task_id:
+      type: string
+    difficulty:
+      type: string
+      enum: [easy, medium, hard]
+    task_prompt:
+      type: string
+    grid_rows:
+      type: array
+      items:
+        type: string
+    legal_actions:
+      type: array
+      items:
+        type: string
+    agent_position:
+      type: array
+      items:
+        type: integer
+    badge_position:
+      type: array
+      items:
+        type: integer
+    gate_position:
+      type: array
+      items:
+        type: integer
+    checkpoint_position:
+      type: array
+      items:
+        type: integer
+    has_badge:
+      type: boolean
+    gate_open:
+      type: boolean
+    dynamic_event_triggered:
+      type: boolean
+    score:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: Normalized task score kept strictly within the open interval (0, 1).
+    steps_remaining:
+      type: integer
+    reward:
+      type: number
+    done:
+      type: boolean
+
+action_space:
+  type: object
+  properties:
+    action:
+      type: string
+      enum: [up, down, left, right, pick_badge, open_gate]
+      description: Facility action chosen for the current step.
+
+reward_space:
+  type: number
+  minimum: -5.0
+  maximum: 50.0
+  description: >
+    Dense training reward from the underlying simulator. Task-level grading is
+    computed separately by the deterministic grader.
+
+reward_breakdown:
+  badge_pickup: 10.0
+  gate_unlock: 10.0
+  checkpoint_completion: 50.0
+  step_penalty: -1.0
+  invalid_action_penalty: -5.0
+
+endpoints:
+  root: GET /
+  health: GET /health
+  metadata: GET /metadata
+  schema: GET /schema
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  mcp: POST /mcp
+  env_info: GET /env-info
