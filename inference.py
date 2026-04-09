@@ -168,18 +168,23 @@ def run_remote(base_url: str, task_id: str, episodes: int, client: OpenAI | None
 
 def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
     if not results:
+        task_score = safe_score(0.0)
         return {
             "episodes": 0,
-            "average_score": safe_score(0.0),
-            "pass_rate": 0.0,
+            "score": task_score,
+            "average_score": task_score,
+            "pass_rate": task_score,
             "average_steps": 0.0,
             "details": [],
         }
 
+    task_score = safe_score(mean(item["score"] for item in results))
+    pass_rate = safe_score(mean(1.0 if item["passed"] else 0.0 for item in results))
     return {
         "episodes": len(results),
-        "average_score": safe_score(mean(item["score"] for item in results)),
-        "pass_rate": mean(1.0 if item["passed"] else 0.0 for item in results),
+        "score": task_score,
+        "average_score": task_score,
+        "pass_rate": pass_rate,
         "average_steps": mean(item["steps"] for item in results),
         "details": results,
     }

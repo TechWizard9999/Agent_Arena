@@ -170,11 +170,17 @@ def summarize(results: list[dict[str, object]]) -> dict[str, object]:
         if results
         else safe_score(0.0)
     )
+    pass_rate = (
+        safe_score(mean(1.0 if item["passed"] else 0.0 for item in results))
+        if results
+        else safe_score(0.0)
+    )
     low, high = task.expected_baseline_score_range
     return {
         "episodes": len(results),
+        "score": average_score,
         "average_score": average_score,
-        "pass_rate": mean(1.0 if item["passed"] else 0.0 for item in results) if results else 0.0,
+        "pass_rate": pass_rate,
         "expected_baseline_score_range": list(task.expected_baseline_score_range),
         "within_expected_range": low <= average_score <= high,
         "success_threshold": task.success_threshold,
