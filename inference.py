@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-import json
+import math
 import os
 from statistics import mean
 from typing import Any
@@ -17,7 +17,14 @@ DEFAULT_ENV_BASE_URL = "http://127.0.0.1:7860"
 
 
 def safe_score(value: float) -> float:
-    return clamp_open_score(float(value))
+    numeric_value = 0.0 if value is None else float(value)
+    if not math.isfinite(numeric_value):
+        numeric_value = 0.0
+    return clamp_open_score(numeric_value)
+
+
+def format_score(value: float) -> str:
+    return f"{safe_score(value):.6f}"
 
 
 # Map string actions from the LLM to the IDs your environment expects
@@ -61,8 +68,33 @@ def build_openai_client() -> OpenAI | None:
     return OpenAI(base_url=api_base_url, api_key=api_key)
 
 
-def log_event(tag: str, payload: dict[str, Any]) -> None:
-    print(f"{tag} {json.dumps(payload, separators=(',', ':'))}", flush=True)
+def _format_field_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return "null"
+    if isinstance(value, float):
+        return f"{value:.6f}"
+    return str(value)
+
+
+def log_event(tag: str, **fields: Any) -> None:
+    parts = [f"{key}={_format_field_value(value)}" for key, value in fields.items()]
+    print(f"{tag} {' '.join(parts)}", flush=True)
+
+
+def render_submission_payload(payload: dict[str, Any]) -> str:
+    task_entries = []
+    tasks = payload.get("tasks", {})
+    for task_id, summary in tasks.items():
+        task_entries.append(
+            f'    "{task_id}": {{"score": {format_score(summary["score"])}}}'
+        )
+
+    if task_entries:
+        tasks_block = ",\n".join(task_entries)
+        return "{\n  \"tasks\": {\n" + tasks_block + "\n  }\n}"
+    return '{\n  "tasks": {}\n}'
 
 
 def compact_episode_result(result: dict[str, Any]) -> dict[str, Any]:
@@ -134,14 +166,12 @@ def run_remote(base_url: str, task_id: str, episodes: int, client: OpenAI | None
             result = env_client.reset(task_id=task_id, layout_seed=layout_seed)
             log_event(
                 "[START]",
-                {
-                    "task_id": task_id,
-                    "episode": episode_index + 1,
-                    "layout_seed": layout_seed,
-                    "mode": "remote",
-                    "base_url": base_url,
-                    "success_threshold": task.success_threshold,
-                },
+                task_id=task_id,
+                episode=episode_index + 1,
+                layout_seed=layout_seed,
+                mode="remote",
+                base_url=base_url,
+                success_threshold=task.success_threshold,
             )
 
             done = result.done
@@ -159,16 +189,14 @@ def run_remote(base_url: str, task_id: str, episodes: int, client: OpenAI | None
 
                 log_event(
                     "[STEP]",
-                    {
-                        "task_id": task_id,
-                        "episode": episode_index + 1,
-                        "step": step_count,
-                        "action": action.action.value,
-                        "reward": round(float(result.reward or 0.0), 6),
-                        "score": round(safe_score(final_observation.score), 6),
-                        "status": final_observation.status,
-                        "done": result.done,
-                    },
+                    task_id=task_id,
+                    episode=episode_index + 1,
+                    step=step_count,
+                    action=action.action.value,
+                    reward=float(result.reward or 0.0),
+                    score=format_score(final_observation.score),
+                    status=final_observation.status,
+                    done=result.done,
                 )
                 done = result.done
 
@@ -183,7 +211,7 @@ def run_remote(base_url: str, task_id: str, episodes: int, client: OpenAI | None
                 "status": final_observation.status,
                 "failure_type": final_observation.metadata.get("failure_type"),
             }
-            log_event("[END]", compact_episode_result(episode_result))
+            log_event("[END]", **compact_episode_result(episode_result))
             results.append(episode_result)
 
     return results
@@ -201,13 +229,11 @@ def main() -> None:
 
     log_event(
         "[START]",
-        {
-            "script": "inference.py",
-            "env_mode": "remote" if args.base_url else "direct",
-            "base_url": args.base_url or DEFAULT_ENV_BASE_URL,
-            "episodes_per_task": args.episodes_per_task,
-            "openai_client_configured": llm_client is not None,
-        },
+        script="inference.py",
+        env_mode="remote" if args.base_url else "direct",
+        base_url=args.base_url or DEFAULT_ENV_BASE_URL,
+        episodes_per_task=args.episodes_per_task,
+        openai_client_configured=llm_client is not None,
     )
 
     payload: dict[str, Any] = {"tasks": {}}
@@ -216,8 +242,9 @@ def main() -> None:
         results = run_remote(args.base_url or DEFAULT_ENV_BASE_URL, task.task_id, args.episodes_per_task, llm_client)
         payload["tasks"][task.task_id] = summarize(results)
 
-    log_event("[END]", payload)
-    print(json.dumps(payload, indent=2))
+    for task_id, summary in payload["tasks"].items():
+        log_event("[END]", task_id=task_id, score=format_score(summary["score"]), summary="task")
+    print(render_submission_payload(payload))
 
 
 if __name__ == "__main__":
