@@ -69,7 +69,9 @@ class AgentArenaObservation(Observation):
         description="Whether the reroute/disruption event has happened this episode.",
     )
     score: float = Field(
-        OPEN_SCORE_EPSILON,
+        ...,
+        gt=0.0,
+        lt=1.0,
         description="Current normalized grader score in the strict open interval (0, 1).",
     )
     event_log: List[str] = Field(
@@ -110,7 +112,9 @@ class AgentArenaState(State):
         description="Whether the dynamic reroute/disruption event has triggered.",
     )
     score: float = Field(
-        default=OPEN_SCORE_EPSILON,
+        ...,
+        gt=0.0,
+        lt=1.0,
         description="Current normalized task score in the strict open interval (0, 1).",
     )
     status: str = Field(default="ready", description="High-level environment status string.")

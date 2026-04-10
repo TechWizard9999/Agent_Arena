@@ -110,8 +110,8 @@ observation_space:
       type: boolean
     score:
       type: number
-      minimum: 0.0
-      maximum: 1.0
+      exclusiveMinimum: 0.0
+      exclusiveMaximum: 1.0
       description: Normalized task score kept strictly within the open interval (0, 1).
     steps_remaining:
       type: integer
