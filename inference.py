@@ -6,12 +6,12 @@ import os
 from statistics import mean
 from typing import Any
 
+import requests
 from openai import OpenAI
 
 from agent_arena.openenv.grader import clamp_open_score
 from agent_arena.openenv.task_definitions import get_task_definition, list_task_definitions
 from baseline_inference import _action_from_id
-from client import AgentArenaEnv
 
 DEFAULT_ENV_BASE_URL = "http://127.0.0.1:7860"
 
@@ -119,7 +119,6 @@ def compact_task_summary(results: list[dict[str, Any]]) -> dict[str, float]:
 def get_llm_action(client: OpenAI | None, model_name: str, observation: Any, task_prompt: str) -> int:
     """Queries the LLM for the next action via the LiteLLM Proxy."""
     if not client:
-        print("[DEBUG] Client not configured. Falling back to default action.", flush=True)
         return 0  # Fallback to 'up'
     
     state_str = str(getattr(observation, "state", observation))
@@ -149,42 +148,63 @@ def get_llm_action(client: OpenAI | None, model_name: str, observation: Any, tas
             if valid_action in response_text:
                 return ACTION_MAP[valid_action]
                 
-    except Exception as exc:
-        print(f"[DEBUG] Model request failed: {exc}", flush=True)
-        
+    except Exception:
+        pass
+
     return 0 # Fallback 
+
+
+def post_environment_json(
+    session: requests.Session,
+    base_url: str,
+    path: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    response = session.post(f"{base_url.rstrip('/')}{path}", json=payload, timeout=30)
+    response.raise_for_status()
+    return response.json()
 
 
 def run_remote(base_url: str, task_id: str, episodes: int, client: OpenAI | None) -> list[dict[str, Any]]:
     task = get_task_definition(task_id)
     results: list[dict[str, Any]] = []
     model_name = os.getenv("MODEL_NAME", "default-model")
+    normalized_base_url = base_url.rstrip("/")
 
-    with AgentArenaEnv(base_url=base_url).sync() as env_client:
+    with requests.Session() as session:
         for episode_index in range(episodes):
             layout_seed = task.layout_seeds[episode_index % len(task.layout_seeds)]
-            result = env_client.reset(task_id=task_id, layout_seed=layout_seed)
+            result = post_environment_json(
+                session,
+                normalized_base_url,
+                "/reset",
+                {"task_id": task_id, "layout_seed": layout_seed},
+            )
+            final_observation = result["observation"]
             log_event(
                 "[START]",
                 task_id=task_id,
                 episode=episode_index + 1,
                 layout_seed=layout_seed,
                 mode="remote",
-                base_url=base_url,
+                base_url=normalized_base_url,
                 success_threshold=task.success_threshold,
             )
 
-            done = result.done
+            done = bool(result.get("done", False))
             step_count = 0
-            final_observation = result.observation
 
             while not done:
                 # MAKE THE API CALL FOR THE NEXT STEP
                 action_id = get_llm_action(client, model_name, final_observation, task.prompt)
-                
-                action = _action_from_id(action_id)
-                result = env_client.step(action)
-                final_observation = result.observation
+                action = _action_from_id(action_id).action.value
+                result = post_environment_json(
+                    session,
+                    normalized_base_url,
+                    "/step",
+                    {"action": {"action": action}},
+                )
+                final_observation = result["observation"]
                 step_count += 1
 
                 log_event(
@@ -192,24 +212,24 @@ def run_remote(base_url: str, task_id: str, episodes: int, client: OpenAI | None
                     task_id=task_id,
                     episode=episode_index + 1,
                     step=step_count,
-                    action=action.action.value,
-                    reward=float(result.reward or 0.0),
-                    score=format_score(final_observation.score),
-                    status=final_observation.status,
-                    done=result.done,
+                    action=action,
+                    reward=float(result.get("reward") or 0.0),
+                    score=format_score(final_observation.get("score")),
+                    status=final_observation.get("status", ""),
+                    done=bool(result.get("done", False)),
                 )
-                done = result.done
+                done = bool(result.get("done", False))
 
             episode_result = {
                 "task_id": task_id,
                 "episode": episode_index + 1,
                 "layout_seed": layout_seed,
-                "score": safe_score(final_observation.score),
-                "passed": bool(final_observation.score >= task.success_threshold),
-                "reward": float(result.reward or 0.0),
+                "score": safe_score(final_observation.get("score")),
+                "passed": bool(safe_score(final_observation.get("score")) >= task.success_threshold),
+                "reward": float(result.get("reward") or 0.0),
                 "steps": step_count,
-                "status": final_observation.status,
-                "failure_type": final_observation.metadata.get("failure_type"),
+                "status": final_observation.get("status", ""),
+                "failure_type": final_observation.get("failure_type"),
             }
             log_event("[END]", **compact_episode_result(episode_result))
             results.append(episode_result)
