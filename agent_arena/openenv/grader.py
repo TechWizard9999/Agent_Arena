@@ -38,9 +38,12 @@ def grade_episode(
         else 0.0
     )
 
-    score = clamp_open_score(
-        milestone_badge + milestone_gate + milestone_checkpoint + efficiency
-    )
+    raw_total = milestone_badge + milestone_gate + milestone_checkpoint + efficiency
+    score = clamp_open_score(raw_total)
+    # Keep the breakdown sum identical to the returned score so downstream
+    # validators that reconstruct scores from components stay in sync.
+    efficiency += score - raw_total
+
     return GradeResult(
         score=score,
         passed=success,
