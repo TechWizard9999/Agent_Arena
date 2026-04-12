@@ -7,13 +7,59 @@ from agent_arena.openenv.task_definitions import TaskDefinition
 OPEN_SCORE_EPSILON = 0.01
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class GradeResult:
-    """Normalized task score returned by the OpenEnv grader."""
+    """Normalized task score returned by the OpenEnv grader.
+
+    Supports numeric operations so external validators can use the result
+    directly as a float (e.g. ``0 < grade_episode(...) < 1``).
+    """
 
     score: float
     passed: bool
     breakdown: dict[str, float]
+
+    def __float__(self) -> float:
+        return self.score
+
+    def __int__(self) -> int:
+        return int(self.score)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, GradeResult):
+            return self.score == other.score
+        if isinstance(other, (int, float)):
+            return self.score == float(other)
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        return hash((self.score, self.passed, tuple(sorted(self.breakdown.items()))))
+
+    def __lt__(self, other: object) -> bool:
+        if isinstance(other, (int, float, GradeResult)):
+            return self.score < float(other)
+        return NotImplemented
+
+    def __le__(self, other: object) -> bool:
+        if isinstance(other, (int, float, GradeResult)):
+            return self.score <= float(other)
+        return NotImplemented
+
+    def __gt__(self, other: object) -> bool:
+        if isinstance(other, (int, float, GradeResult)):
+            return self.score > float(other)
+        return NotImplemented
+
+    def __ge__(self, other: object) -> bool:
+        if isinstance(other, (int, float, GradeResult)):
+            return self.score >= float(other)
+        return NotImplemented
+
+    def __getitem__(self, key: str) -> object:
+        return getattr(self, key)
+
+    def __contains__(self, key: str) -> bool:
+        return hasattr(self, key)
 
 
 def clamp_open_score(value: float) -> float:
