@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from agent_arena.openenv.task_definitions import TaskDefinition
 
-OPEN_SCORE_EPSILON = 1e-6
+OPEN_SCORE_EPSILON = 0.01
 
 
 @dataclass(frozen=True)

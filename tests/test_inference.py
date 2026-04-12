@@ -9,8 +9,8 @@ def test_safe_score_clamps_non_finite_values_into_open_interval() -> None:
 
 
 def test_format_score_uses_fixed_decimal_notation() -> None:
-    assert format_score(0.0) == "0.000001"
-    assert format_score(1.0) == "0.999999"
+    assert format_score(0.0) == "0.010000"
+    assert format_score(1.0) == "0.990000"
 
 
 def test_render_submission_payload_uses_fixed_decimal_scores() -> None:
@@ -23,6 +23,6 @@ def test_render_submission_payload_uses_fixed_decimal_scores() -> None:
 
     rendered = render_submission_payload(payload)
 
-    assert '"easy_facility_reset": {"score": 0.000001}' in rendered
-    assert '"medium_reroute_response": {"score": 0.999999}' in rendered
+    assert '"easy_facility_reset": {"score": 0.010000}' in rendered
+    assert '"medium_reroute_response": {"score": 0.990000}' in rendered
     assert "1e-06" not in rendered
